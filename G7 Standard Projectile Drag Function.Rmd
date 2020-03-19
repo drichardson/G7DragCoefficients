@@ -1,0 +1,214 @@
+---
+title: "G7 Standard Projectile Drag Function"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+G7 drag coefficient table taken from [JBM Ballistics](http://www.jbmballistics.com/ballistics/downloads/text/mcg7.txt) who told Doug in e-mail they got it from the US Army Ballistic Research Labratory.
+
+Most of this notebook depends on the drag table being loaded in a data frame named tbl with 2 columns: Mach and CD. Assuming there's a file in your working directory, you can load the data with:
+
+```{r}
+tbl<-read.table("G7 Drag Coefficients.txt", header = TRUE)
+```
+
+```{r}
+plot(tbl)
+```
+
+
+```{r}
+subsonicLimit <- 0.91
+supersonicLimit <- 1.04
+subsonic<-tbl[tbl$Mach < subsonicLimit,]
+transonic<-tbl[tbl$Mach >= subsonicLimit  & tbl$Mach <= supersonicLimit,]
+supersonic<-tbl[tbl$Mach > supersonicLimit,]
+plot(tbl)
+lines(subsonic, col="red")
+lines(transonic, col="blue")
+lines(supersonic, col="green")
+```
+
+# Helper Functions
+```{r}
+drawFit <- function(df, fit, color) {
+  lines(unlist(df["Mach"]), predict(fit, df["CD"]), col=color)
+}
+polyFit <- function(df, order) {
+  cd <- unlist(df["CD"])
+  mach <- poly(unlist(df["Mach"]), order, raw=TRUE)
+  lm(cd ~ mach)
+}
+drawPolyFit <- function(df, order, color) {
+  drawFit(df, polyFit(df, order), color)
+}
+plotOrder <- function(order) {
+  plot(tbl)
+  drawPolyFit(subsonic, order, "red")
+  drawPolyFit(transonic, order, "blue")
+  drawPolyFit(supersonic, order, "green")
+}
+printEquation <- function(df, order) {
+  cat("f(x)=")
+  c=coef(polyFit(df, order))
+  for(i in length(c):1){
+    exponent = i-1;
+    if (exponent > 1) {
+      cat(sprintf("%fx^%g", c[i], i-1))
+    } else if (exponent == 1) {
+      cat(sprintf("%fx", c[i]))
+    } else {
+      cat(sprintf("%f", c[i]))
+    }
+    if(i != 1) {
+      cat(" + ");
+    }
+  }
+}
+summarizeOrder <- function(order) {
+  cat("Subsonic Summary\n")
+  cat("----------------\n")
+  print(summary(polyFit(subsonic, order)))
+  cat("Transonic Summary\n")
+  cat("-----------------\n")
+  print(summary(polyFit(transonic, order)))
+  cat("Supersonic Summary\n");
+  cat("------------------\n")
+  print(summary(polyFit(supersonic, order)))
+  cat("Equations\n")
+  cat("---------\n")
+  printEquation(subsonic, order)
+  cat(sprintf(", x < %f\n", subsonicLimit))
+  printEquation(transonic, order)
+  cat(sprintf(", %f <= x <= %f\n", subsonicLimit, supersonicLimit))
+  printEquation(supersonic, order)
+  cat(sprintf(", x > %f\n", supersonicLimit))
+}
+```
+
+# Linear Fit
+```{r}
+plotOrder(1)
+summarizeOrder(1)
+```
+# 2nd Order Polynomial Fit
+```{r}
+plotOrder(2)
+summarizeOrder(2)
+```
+
+
+
+# 3rd Order Polynomial Fit
+```{r}
+plotOrder(3)
+summarizeOrder(3)
+```
+
+# 1st Order Fitting Function
+
+$$f(x)=0.013966x + 0.115561, x < 0.910000$$
+$$f(x)=2.583600x + -2.228510, 0.910000 <= x <= 1.040000$$
+$$f(x)=-0.062385x + 0.437386, x > 1.040000$$
+
+# Verify 1nd Order Fitting Function Work as Expected
+```{r}
+
+# f(x)=0.013966x + 0.115561, x < 0.910000
+# f(x)=2.583600x + -2.228510, 0.910000 <= x <= 1.040000
+# f(x)=-0.062385x + 0.437386, x > 1.040000
+
+subsonicX=seq(0, subsonicLimit, 0.01)
+subsonicCD <- function(x) {
+  0.013966*x + 0.115561
+}
+
+transonicX=seq(subsonicLimit, supersonicLimit, 0.01)
+transonicCD <- function(x) {
+  2.583600*x + -2.228510
+}
+
+supersonicX=seq(supersonicLimit, max(tbl["Mach"]), 0.01)
+supersonicCD <- function(x) {
+  -0.062385*x + 0.437386
+}
+
+plot(tbl)
+lines(supersonicX,supersonicCD(supersonicX), col="red")
+lines(transonicX,transonicCD(transonicX), col="blue")
+lines(subsonicX,subsonicCD(subsonicX), col="green")
+```
+
+
+# 2nd Order Fitting Function
+
+Using the coefficients from the 2nd order function, we get:
+
+$$f(x)=0.057185x^2 -0.039590x + 0.123416, x < 0.910000$$
+$$f(x)=-5.634286x^2 + 13.570457x -7.577560, 0.910000 <= x <= 1.040000$$
+$$f(x)=0.012365x^2 -0.131514x + 0.519829, x > 1.040000$$
+
+
+# Verify 2nd Order Fitting Function Work as Expected
+```{r}
+
+# f(x)=0.057185x^2 + -0.039590x + 0.123416, x < 0.910000
+# f(x)=-5.634286x^2 + 13.570457x + -7.577560, 0.910000 <= x <= 1.040000
+# f(x)=0.012365x^2 + -0.131514x + 0.519829, x > 1.040000
+
+subsonicX=seq(0, subsonicLimit, 0.01)
+subsonicCD <- function(x) {
+  0.057185*x^2 -0.039590*x + 0.123416
+}
+
+transonicX=seq(subsonicLimit, supersonicLimit, 0.01)
+transonicCD <- function(x) {
+  -5.634286*x^2 + 13.570457*x + -7.577560
+}
+
+supersonicX=seq(supersonicLimit, max(tbl["Mach"]), 0.01)
+supersonicCD <- function(x) {
+  0.012365*x^2 + -0.131514*x + 0.519829
+}
+
+plot(tbl)
+lines(supersonicX,supersonicCD(supersonicX), col="red")
+lines(transonicX,transonicCD(transonicX), col="blue")
+lines(subsonicX,subsonicCD(subsonicX), col="green")
+```
+
+# Mixed Fitting Function
+Mixed uses linear functions for subsonic and transonic regions, and a 2nd order function for the supersonic region.
+
+$$f(x)=0.013966x + 0.115561, x < 0.910000$$
+$$f(x)=2.583600x + -2.228510, 0.910000 <= x <= 1.040000$$
+
+$$f(x)=0.012365x^2 + -0.131514x + 0.519829, x > 1.040000$$
+
+
+# Verify Mixed Fitting Function
+```{r}
+
+
+subsonicX=seq(0, subsonicLimit, 0.01)
+subsonicCD <- function(x) {
+  0.013966*x + 0.115561
+}
+
+transonicX=seq(subsonicLimit, supersonicLimit, 0.01)
+transonicCD <- function(x) {
+  2.583600*x + -2.228510
+}
+
+supersonicX=seq(supersonicLimit, max(tbl["Mach"]), 0.01)
+supersonicCD <- function(x) {
+  0.012365*x^2 + -0.131514*x + 0.519829
+}
+
+plot(tbl)
+lines(supersonicX,supersonicCD(supersonicX), col="red")
+lines(transonicX,transonicCD(transonicX), col="blue")
+lines(subsonicX,subsonicCD(subsonicX), col="green")
+```
